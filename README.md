@@ -169,6 +169,10 @@ The admin panel and the save/delete WebSocket commands require an admin account.
 
 Remove the integration from *Settings → Devices & Services*. Menu definitions are stored in `.storage/navigation_menu_manager.menus` — delete the file to wipe them.
 
+## Development
+<img width="256" height="256" alt="image" src="https://github.com/user-attachments/assets/05d306f7-cdff-4f35-96d4-cc264d418e2d" />
+
+
 ## Contributing
 
 Issues and PRs welcome at <https://github.com/loryanstrant/HA-Navigation-Menu-Manager>.
