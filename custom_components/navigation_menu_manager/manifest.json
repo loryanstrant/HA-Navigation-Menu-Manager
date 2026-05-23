@@ -1,0 +1,13 @@
+{
+  "domain": "navigation_menu_manager",
+  "name": "Navigation Menu Manager",
+  "version": "0.1.3",
+  "documentation": "https://github.com/loryanstrant/navigation-menu-manager",
+  "issue_tracker": "https://github.com/loryanstrant/navigation-menu-manager/issues",
+  "codeowners": ["@loryanstrant"],
+  "config_flow": true,
+  "iot_class": "local_push",
+  "integration_type": "service",
+  "dependencies": ["http", "frontend", "lovelace", "websocket_api", "panel_custom"],
+  "requirements": []
+}
