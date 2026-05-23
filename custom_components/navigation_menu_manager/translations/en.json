@@ -1,0 +1,14 @@
+{
+  "title": "Navigation Menu Manager",
+  "config": {
+    "step": {
+      "user": {
+        "title": "Navigation Menu Manager",
+        "description": "Centrally-managed navigation menus for your Home Assistant dashboards.\n\nOpen the **Nav Menus** sidebar entry after setup to create and edit your menus, then add the **Navigation Menu** card to any view."
+      }
+    },
+    "abort": {
+      "single_instance_allowed": "Navigation Menu Manager is already configured."
+    }
+  }
+}

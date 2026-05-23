@@ -1,0 +1,13 @@
+{
+  "domain": "navigation_menu_manager",
+  "name": "Navigation Menu Manager",
+  "codeowners": ["@loryanstrant"],
+  "config_flow": true,
+  "dependencies": ["http", "frontend", "lovelace", "websocket_api", "panel_custom"],
+  "documentation": "https://github.com/loryanstrant/HA-Navigation-Menu-Manager",
+  "integration_type": "service",
+  "iot_class": "local_push",
+  "issue_tracker": "https://github.com/loryanstrant/HA-Navigation-Menu-Manager/issues",
+  "requirements": [],
+  "version": "0.1.3"
+}
