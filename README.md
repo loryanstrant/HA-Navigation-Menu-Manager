@@ -35,7 +35,7 @@ This integration fixes all of that:
 ### HACS (recommended)
 
 1. In HACS, click **Integrations → ⋯ → Custom repositories**
-2. Add `https://github.com/loryanstrant/navigation-menu-manager` as type **Integration**
+2. Add `https://github.com/loryanstrant/HA-Navigation-Menu-Manager` as type **Integration**
 3. Install **Navigation Menu Manager**
 4. Restart Home Assistant
 5. *Settings → Devices & Services → Add Integration → Navigation Menu Manager*
@@ -156,7 +156,7 @@ Remove the integration from *Settings → Devices & Services*. Menu definitions 
 
 ## Contributing
 
-Issues and PRs welcome at <https://github.com/loryanstrant/navigation-menu-manager>.
+Issues and PRs welcome at <https://github.com/loryanstrant/HA-Navigation-Menu-Manager>.
 
 ## License
 
