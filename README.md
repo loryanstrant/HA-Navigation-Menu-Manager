@@ -2,8 +2,6 @@
 
 A Home Assistant custom integration that lets you define dashboard navigation menus **once**, then drop a custom Lovelace card on any view to render them. Update the menu in one place — every dashboard updates live.
 
-![Hero](https://placehold.co/1200x300/1c1c1e/03a9f4?text=Navigation+Menu+Manager)
-
 ## Why
 
 If you've ever built a Home Assistant dashboard with a row of navigation tiles across the top, you know the pain:
@@ -11,6 +9,8 @@ If you've ever built a Home Assistant dashboard with a row of navigation tiles a
 - Spacing drifts between views because the menu is copy-pasted onto each one
 - Modifying the menu means editing every single view by hand
 - Highlighting the "active" button via a separate theme fights with the rest of your dashboard theming
+
+While there are some cards out there to simplify this, or make reusable templates, I found limitations or quirks with them that required me to get into the CSS just to make them display correctly.
 
 This integration fixes all of that:
 
@@ -48,6 +48,15 @@ This integration fixes all of that:
 
 After install, a **Nav Menus** entry appears in your sidebar (admins only).
 
+## Examples
+
+<img width="1593" height="164" alt="image" src="https://github.com/user-attachments/assets/55d1518b-672f-4d7a-8645-1b91cc39960c" />
+
+<img width="1606" height="140" alt="image" src="https://github.com/user-attachments/assets/e5e77c12-f3f8-42ee-990c-4904aa74e596" />
+
+<img width="1602" height="139" alt="image" src="https://github.com/user-attachments/assets/db860f6e-a3c6-4ead-9b4e-de574cc24080" />
+
+
 ## Usage
 
 ### 1. Define a menu
@@ -74,9 +83,15 @@ Open the **Nav Menus** sidebar entry. Click **+ New menu** and fill in:
 - **Prefix** — `current.startsWith(path)`
 - **Suffix** — `current.endsWith(path)`
 
+<img width="1824" height="994" alt="image" src="https://github.com/user-attachments/assets/7ae19c1f-1041-418a-a09e-b56a2ead1141" />
+
+
 ### 2. Add the card to a view
 
 Edit any view, click **+ Add Card**, search for **Navigation Menu**, and you'll see a live preview in the picker.
+
+<img width="1006" height="538" alt="image" src="https://github.com/user-attachments/assets/e28f897e-83ba-4b7e-8ace-d0f8985b63ad" />
+
 
 Or paste this YAML:
 
