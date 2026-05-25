@@ -65,6 +65,9 @@ def _get_store(
         return None
 
 
+# --- Read commands: available to any authenticated user (no admin gate) ----
+
+
 @websocket_api.websocket_command({vol.Required("type"): f"{DOMAIN}/list_menus"})
 @websocket_api.async_response
 async def ws_list_menus(
@@ -102,7 +105,23 @@ async def ws_get_menu(
     connection.send_result(msg["id"], {"menu_id": msg["menu_id"], "menu": menu})
 
 
-@websocket_api.require_admin
+# --- Write commands: admin only --------------------------------------------
+#
+# Decorator order matters. ``require_admin`` must be applied to the handler
+# *before* ``websocket_command`` registers it, so it has to sit *inside*
+# (below) ``websocket_command`` in the stack:
+#
+#     @websocket_api.websocket_command({...})   # outermost: registers command
+#     @websocket_api.require_admin              # marks handler admin-only
+#     @websocket_api.async_response             # innermost: async wrapper
+#     async def handler(...): ...
+#
+# If ``require_admin`` is placed on the outside, the admin flag is never
+# baked into the registered command correctly and the command set ends up
+# malformed — which raised a spurious ``Unauthorized`` for non-admin users
+# even on the unrelated read/subscribe commands.
+
+
 @websocket_api.websocket_command(
     {
         vol.Required("type"): f"{DOMAIN}/save_menu",
@@ -110,6 +129,7 @@ async def ws_get_menu(
         vol.Required("menu"): MENU_SCHEMA,
     }
 )
+@websocket_api.require_admin
 @websocket_api.async_response
 async def ws_save_menu(
     hass: HomeAssistant,
@@ -126,13 +146,13 @@ async def ws_save_menu(
     connection.send_result(msg["id"], {"menu_id": menu_id, "menu": store.get_menu(menu_id)})
 
 
-@websocket_api.require_admin
 @websocket_api.websocket_command(
     {
         vol.Required("type"): f"{DOMAIN}/delete_menu",
         vol.Required("menu_id"): str,
     }
 )
+@websocket_api.require_admin
 @websocket_api.async_response
 async def ws_delete_menu(
     hass: HomeAssistant,
@@ -146,6 +166,9 @@ async def ws_delete_menu(
         connection.send_error(msg["id"], "not_found", f"Menu '{msg['menu_id']}' not found")
         return
     connection.send_result(msg["id"], {"menu_id": msg["menu_id"], "deleted": True})
+
+
+# --- Subscribe: available to any authenticated user (no admin gate) --------
 
 
 @websocket_api.websocket_command(
@@ -169,6 +192,8 @@ async def ws_subscribe_menu(
     store = _get_store(hass, connection, msg["id"])
     if store is None:
         return
+
+    _LOGGER.debug("subscribe_menu: id=%s menu_id=%s", msg["id"], menu_id)
 
     def _send_current() -> None:
         menu = store.get_menu(menu_id)

@@ -2,8 +2,15 @@
  * Navigation Menu Manager — Lovelace card
  * https://github.com/loryanstrant/navigation-menu-manager
  */
-const CARD_VERSION = "0.1.4";
+const CARD_VERSION = "0.1.5";
 const DOMAIN = "navigation_menu_manager";
+
+// How long to wait before showing a visible "Loading…" placeholder. Below
+// this threshold the card stays blank (zero-height) so a fast subscribe
+// never produces a visible flash/flicker.
+const LOADING_PLACEHOLDER_DELAY_MS = 400;
+// One automatic retry after a failed subscribe, after this backoff.
+const SUBSCRIBE_RETRY_MS = 2000;
 
 // eslint-disable-next-line no-console
 console.info(
@@ -71,6 +78,10 @@ class NavigationMenuManagerCard extends HTMLElement {
     this._unsub = null; // subscription unsub function (sync)
     this._loadGen = 0; // increments each (re)connect; used to ignore stale callbacks
     this._currentPath = window.location.pathname;
+    this._hasRenderedMenu = false; // whether a real menu has ever been shown
+    this._loadingTimer = null; // delayed "Loading…" placeholder timer
+    this._retryTimer = null; // one-shot subscribe retry timer
+    this._retriedGen = -1; // generation we've already retried, to retry only once
     this._onLocationChanged = this._onLocationChanged.bind(this);
   }
 
@@ -101,6 +112,7 @@ class NavigationMenuManagerCard extends HTMLElement {
       this._menu = null;
       this._state = "idle";
       this._errorMsg = null;
+      this._hasRenderedMenu = false;
       this._teardown();
       this._maybeConnect();
     }
@@ -149,9 +161,21 @@ class NavigationMenuManagerCard extends HTMLElement {
     }
   }
 
+  _clearTimers() {
+    if (this._loadingTimer) {
+      clearTimeout(this._loadingTimer);
+      this._loadingTimer = null;
+    }
+    if (this._retryTimer) {
+      clearTimeout(this._retryTimer);
+      this._retryTimer = null;
+    }
+  }
+
   _teardown() {
     // Invalidate any in-flight subscribe callback by bumping the generation
     this._loadGen += 1;
+    this._clearTimers();
     if (this._unsub) {
       try {
         this._unsub();
@@ -170,7 +194,21 @@ class NavigationMenuManagerCard extends HTMLElement {
     const gen = ++this._loadGen;
     const menuId = this._config.menu;
     this._state = "loading";
-    this._render();
+
+    // Don't paint a visible "Loading…" immediately — that's what causes the
+    // flicker when the subscribe resolves a moment later. Only show it if
+    // loading actually drags on. If a menu was previously rendered, keep it
+    // on screen instead (transient reconnect should not blank the nav).
+    this._clearTimers();
+    if (!this._hasRenderedMenu) {
+      this._render(); // renders an empty, zero-height card (see _render)
+      this._loadingTimer = setTimeout(() => {
+        this._loadingTimer = null;
+        if (gen === this._loadGen && this._state === "loading") {
+          this._renderLoadingPlaceholder();
+        }
+      }, LOADING_PLACEHOLDER_DELAY_MS);
+    }
 
     this._hass.connection
       .subscribeMessage(
@@ -178,12 +216,14 @@ class NavigationMenuManagerCard extends HTMLElement {
           // Ignore stale events from a previous subscription that we
           // haven't finished tearing down.
           if (gen !== this._loadGen) return;
+          this._clearTimers();
           if (!event) {
             this._state = "not_found";
             this._menu = null;
           } else if (event.menu) {
             this._state = "ready";
             this._menu = event.menu;
+            this._hasRenderedMenu = true;
           } else {
             this._state = "not_found";
             this._menu = null;
@@ -209,8 +249,32 @@ class NavigationMenuManagerCard extends HTMLElement {
       })
       .catch((err) => {
         if (gen !== this._loadGen) return;
+        this._clearTimers();
         // eslint-disable-next-line no-console
         console.error("[navigation-menu-manager] subscribe failed", err);
+
+        // Attempt one automatic retry before surfacing an error — handles
+        // transient connection blips and races during HA reloads.
+        if (this._retriedGen !== gen) {
+          this._retriedGen = gen;
+          this._retryTimer = setTimeout(() => {
+            this._retryTimer = null;
+            if (gen === this._loadGen && !this._unsub) {
+              this._state = "idle";
+              this._maybeConnect();
+            }
+          }, SUBSCRIBE_RETRY_MS);
+          return;
+        }
+
+        // Retry already used. If we have a previously-rendered menu, keep it
+        // on screen rather than replacing it with an error box. Only show the
+        // error state when we have nothing else to show.
+        if (this._hasRenderedMenu) {
+          this._state = "ready";
+          this._render();
+          return;
+        }
         this._state = "error";
         this._errorMsg = err && err.message ? err.message : String(err);
         this._render();
@@ -247,13 +311,24 @@ class NavigationMenuManagerCard extends HTMLElement {
 
   /* ---------- rendering ---------- */
 
+  _renderLoadingPlaceholder() {
+    this._setHtml(`
+      <ha-card><div class="placeholder">Loading navigation menu…</div></ha-card>
+    `);
+  }
+
   _render() {
     if (!this._config) return;
 
     if (this._state === "loading" || this._state === "idle") {
-      this._setHtml(`
-        <ha-card><div class="placeholder">Loading navigation menu…</div></ha-card>
-      `);
+      // While (re)connecting: if we already have a menu, keep showing it;
+      // otherwise render a blank, zero-height card so nothing flickers. A
+      // visible "Loading…" is shown separately, only after a short delay.
+      if (this._hasRenderedMenu && this._menu) {
+        this._renderMenu();
+      } else {
+        this._setHtml(`<ha-card class="nmm-blank"></ha-card>`);
+      }
       return;
     }
 
@@ -279,6 +354,10 @@ class NavigationMenuManagerCard extends HTMLElement {
       return;
     }
 
+    this._renderMenu();
+  }
+
+  _renderMenu() {
     const items = Array.isArray(this._menu.items) ? this._menu.items : [];
     const style = this._config.style || this._menu.style || "buttons";
     const columns =
@@ -320,6 +399,7 @@ class NavigationMenuManagerCard extends HTMLElement {
       columns
     );
 
+    if (!this.shadowRoot) return;
     this.shadowRoot.querySelectorAll(".item").forEach((el) => {
       el.addEventListener("click", (event) => {
         const idx = Number(el.dataset.index);
@@ -330,6 +410,8 @@ class NavigationMenuManagerCard extends HTMLElement {
   }
 
   _setHtml(body, columns = 1) {
+    // Guard against teardown races where shadowRoot may be gone.
+    if (!this.shadowRoot) return;
     this.shadowRoot.innerHTML = `${this._styles(columns)}${body}`;
   }
 
@@ -338,6 +420,14 @@ class NavigationMenuManagerCard extends HTMLElement {
       <style>
         :host { display:block; }
         ha-card { padding: var(--nmm-card-padding, 8px); }
+        /* blank card while (re)connecting — occupies no visible space */
+        ha-card.nmm-blank {
+          padding: 0;
+          border: 0;
+          background: transparent;
+          box-shadow: none;
+          min-height: 0;
+        }
         .placeholder { padding: 12px; opacity: .7; font-size: 13px; text-align: center; }
         .err { padding: 12px; color: var(--error-color, #db4437); font-size: 13px; }
         .menu {
