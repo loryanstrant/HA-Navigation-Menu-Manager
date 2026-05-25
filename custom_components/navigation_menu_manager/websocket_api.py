@@ -52,6 +52,19 @@ def _menus_payload(store: MenuStore) -> dict[str, Any]:
     return {"menus": store.menus}
 
 
+def _get_store(
+    hass: HomeAssistant,
+    connection: websocket_api.ActiveConnection,
+    msg_id: int,
+) -> MenuStore | None:
+    """Return the MenuStore, or send a not_ready error and return None."""
+    try:
+        return get_store(hass)
+    except (KeyError, AttributeError):
+        connection.send_error(msg_id, "not_ready", "Integration is not ready yet")
+        return None
+
+
 @websocket_api.websocket_command({vol.Required("type"): f"{DOMAIN}/list_menus"})
 @websocket_api.async_response
 async def ws_list_menus(
@@ -60,10 +73,8 @@ async def ws_list_menus(
     msg: dict[str, Any],
 ) -> None:
     """Return all menus."""
-    try:
-        store = get_store(hass)
-    except (KeyError, AttributeError):
-        connection.send_error(msg["id"], "not_ready", "Integration is not ready yet")
+    store = _get_store(hass, connection, msg["id"])
+    if store is None:
         return
     connection.send_result(msg["id"], _menus_payload(store))
 
@@ -81,10 +92,8 @@ async def ws_get_menu(
     msg: dict[str, Any],
 ) -> None:
     """Return one menu."""
-    try:
-        store = get_store(hass)
-    except (KeyError, AttributeError):
-        connection.send_error(msg["id"], "not_ready", "Integration is not ready yet")
+    store = _get_store(hass, connection, msg["id"])
+    if store is None:
         return
     menu = store.get_menu(msg["menu_id"])
     if menu is None:
@@ -157,10 +166,8 @@ async def ws_subscribe_menu(
     time the menu (or any menu — clients filter by id) is saved/deleted.
     """
     menu_id = msg["menu_id"]
-    try:
-        store = get_store(hass)
-    except (KeyError, AttributeError):
-        connection.send_error(msg["id"], "not_ready", "Integration is not ready yet")
+    store = _get_store(hass, connection, msg["id"])
+    if store is None:
         return
 
     def _send_current() -> None:
