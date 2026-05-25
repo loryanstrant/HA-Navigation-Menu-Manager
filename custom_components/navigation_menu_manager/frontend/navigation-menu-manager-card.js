@@ -2,7 +2,7 @@
  * Navigation Menu Manager — Lovelace card
  * https://github.com/loryanstrant/navigation-menu-manager
  */
-const CARD_VERSION = "0.1.3";
+const CARD_VERSION = "0.1.4";
 const DOMAIN = "navigation_menu_manager";
 
 // eslint-disable-next-line no-console
