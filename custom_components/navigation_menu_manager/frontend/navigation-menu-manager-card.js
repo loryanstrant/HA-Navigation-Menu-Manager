@@ -1,8 +1,8 @@
 /*!
  * Navigation Menu Manager — Lovelace card
- * https://github.com/loryanstrant/navigation-menu-manager
+ * https://github.com/loryanstrant/HA-Navigation-Menu-Manager
  */
-const CARD_VERSION = "0.1.5";
+const CARD_VERSION = "0.1.6";
 const DOMAIN = "navigation_menu_manager";
 
 // How long to wait before showing a visible "Loading…" placeholder. Below
@@ -76,6 +76,7 @@ class NavigationMenuManagerCard extends HTMLElement {
     this._state = "idle"; // idle | loading | ready | not_found | error
     this._errorMsg = null;
     this._unsub = null; // subscription unsub function (sync)
+    this._connecting = false; // true while a subscribe round-trip is in flight
     this._loadGen = 0; // increments each (re)connect; used to ignore stale callbacks
     this._currentPath = window.location.pathname;
     this._hasRenderedMenu = false; // whether a real menu has ever been shown
@@ -173,8 +174,17 @@ class NavigationMenuManagerCard extends HTMLElement {
   }
 
   _teardown() {
-    // Invalidate any in-flight subscribe callback by bumping the generation
+    // Invalidate any in-flight subscribe callback by bumping the generation.
     this._loadGen += 1;
+    // Critical: a connect may be in flight whose promise hasn't resolved yet.
+    // Clearing the in-flight flag (and not leaving _state stuck on "loading")
+    // ensures a subsequent _maybeConnect() will actually reconnect rather than
+    // bail out thinking a connect is still pending. Without this the card can
+    // wedge permanently in the "loading" state with no active subscription.
+    this._connecting = false;
+    if (this._state === "loading") {
+      this._state = this._hasRenderedMenu ? "ready" : "idle";
+    }
     this._clearTimers();
     if (this._unsub) {
       try {
@@ -189,10 +199,11 @@ class NavigationMenuManagerCard extends HTMLElement {
   _maybeConnect() {
     if (!this._hass || !this._config) return;
     if (this._unsub) return; // already connected
-    if (this._state === "loading") return; // connect in flight
+    if (this._connecting) return; // a connect round-trip is genuinely in flight
 
     const gen = ++this._loadGen;
     const menuId = this._config.menu;
+    this._connecting = true;
     this._state = "loading";
 
     // Don't paint a visible "Loading…" immediately — that's what causes the
@@ -237,17 +248,28 @@ class NavigationMenuManagerCard extends HTMLElement {
       )
       .then((unsub) => {
         if (gen !== this._loadGen) {
-          // We were torn down before subscribe finished — unsub immediately.
+          // We were torn down before subscribe finished. Unsub this orphaned
+          // subscription immediately, then make sure we end up connected: a
+          // teardown happened during connect, so kick a fresh attempt rather
+          // than silently leaving the card with no subscription.
           try {
             unsub();
           } catch (_) {
             /* noop */
           }
+          this._connecting = false;
+          // Reconnect on the next tick if we still need to and aren't already.
+          if (!this._unsub && this.isConnected) {
+            setTimeout(() => this._maybeConnect(), 0);
+          }
           return;
         }
         this._unsub = unsub;
+        this._connecting = false;
       })
       .catch((err) => {
+        // Clear the in-flight flag regardless of generation.
+        this._connecting = false;
         if (gen !== this._loadGen) return;
         this._clearTimers();
         // eslint-disable-next-line no-console
@@ -706,6 +728,6 @@ if (
       "Centrally-managed navigation menu — define once, use everywhere. Highlights the active view automatically.",
     preview: true,
     documentationURL:
-      "https://github.com/loryanstrant/navigation-menu-manager",
+      "https://github.com/loryanstrant/HA-Navigation-Menu-Manager",
   });
 }
