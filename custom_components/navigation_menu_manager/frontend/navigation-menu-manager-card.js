@@ -2,7 +2,7 @@
  * Navigation Menu Manager — Lovelace card
  * https://github.com/loryanstrant/HA-Navigation-Menu-Manager
  */
-const CARD_VERSION = "0.1.6";
+const CARD_VERSION = "0.1.9";
 const DOMAIN = "navigation_menu_manager";
 
 // How long to wait before showing a visible "Loading…" placeholder. Below
@@ -434,13 +434,28 @@ class NavigationMenuManagerCard extends HTMLElement {
   _setHtml(body, columns = 1) {
     // Guard against teardown races where shadowRoot may be gone.
     if (!this.shadowRoot) return;
-    this.shadowRoot.innerHTML = `${this._styles(columns)}${body}`;
+    // Build the shadow structure ONCE (a <style> we own + a body container),
+    // then only swap the body on re-render. Replacing the whole shadowRoot
+    // innerHTML on every render would also destroy <style> elements that other
+    // tools inject into our shadow root — notably card-mod themes — which is
+    // why a themed font/styling didn't "come through" to this card while it
+    // re-renders (navigation, live updates). Now those injected styles survive.
+    if (!this._styleEl || !this._styleEl.isConnected) {
+      this.shadowRoot.textContent = "";
+      this._styleEl = document.createElement("style");
+      this._bodyEl = document.createElement("div");
+      this._bodyEl.className = "nmm-root";
+      this.shadowRoot.append(this._styleEl, this._bodyEl);
+    }
+    this._styleEl.textContent = this._stylesCss(columns);
+    this._bodyEl.innerHTML = body;
   }
 
-  _styles(columns) {
+  _stylesCss(columns) {
     return `
-      <style>
         :host { display:block; }
+        /* transparent wrapper — no layout box, so the card lays out as before */
+        .nmm-root { display: contents; }
         ha-card { padding: var(--nmm-card-padding, 8px); }
         /* blank card while (re)connecting — occupies no visible space */
         ha-card.nmm-blank {
@@ -528,7 +543,6 @@ class NavigationMenuManagerCard extends HTMLElement {
         .menu.seamless .item + .item {
           box-shadow: inset 1px 0 0 var(--nmm-seamless-divider, transparent);
         }
-      </style>
     `;
   }
 }
