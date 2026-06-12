@@ -114,7 +114,7 @@ card_style: false     # remove the surrounding ha-card background
 
 ## Theming
 
-The card styles itself with your active HA theme by default. You can fine-tune via CSS variables on the card-mod / `card_mod` style block, or globally in your theme:
+The card styles itself with your active HA theme by default — including theme fonts and any `card-mod` view/theme styling, which it inherits from the view it sits on. You can fine-tune via CSS variables on the card-mod / `card_mod` style block, or globally in your theme:
 
 ```yaml
 navigation-menu-manager-card:
