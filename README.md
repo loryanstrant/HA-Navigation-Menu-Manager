@@ -1,5 +1,15 @@
 # Navigation Menu Manager
 
+[![HACS](https://img.shields.io/badge/HACS-Custom-41BDF5?style=flat-square)](https://github.com/hacs/integration)
+[![Release](https://img.shields.io/github/v/release/loryanstrant/HA-Navigation-Menu-Manager?style=flat-square)](https://github.com/loryanstrant/HA-Navigation-Menu-Manager/releases)
+[![Release date](https://img.shields.io/github/release-date/loryanstrant/HA-Navigation-Menu-Manager?style=flat-square)](https://github.com/loryanstrant/HA-Navigation-Menu-Manager/releases)
+[![Downloads](https://img.shields.io/github/downloads/loryanstrant/HA-Navigation-Menu-Manager/total?style=flat-square)](https://github.com/loryanstrant/HA-Navigation-Menu-Manager/releases)
+[![License](https://img.shields.io/github/license/loryanstrant/HA-Navigation-Menu-Manager?style=flat-square)](LICENSE)
+[![Last commit](https://img.shields.io/github/last-commit/loryanstrant/HA-Navigation-Menu-Manager?style=flat-square)](https://github.com/loryanstrant/HA-Navigation-Menu-Manager/commits)
+[![Stars](https://img.shields.io/github/stars/loryanstrant/HA-Navigation-Menu-Manager?style=flat-square)](https://github.com/loryanstrant/HA-Navigation-Menu-Manager/stargazers)
+
+[![Open in HACS](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=loryanstrant&repository=HA-Navigation-Menu-Manager&category=integration)
+
 A Home Assistant custom integration that lets you define dashboard navigation menus **once**, then drop a custom Lovelace card on any view to render them. Update the menu in one place — every dashboard updates live.
 
 ## Why
@@ -56,7 +66,6 @@ After install, a **Nav Menus** entry appears in your sidebar (admins only).
 
 <img width="1602" height="139" alt="image" src="https://github.com/user-attachments/assets/db860f6e-a3c6-4ead-9b4e-de574cc24080" />
 
-
 ## Usage
 
 ### 1. Define a menu
@@ -85,13 +94,11 @@ Open the **Nav Menus** sidebar entry. Click **+ New menu** and fill in:
 
 <img width="1824" height="994" alt="image" src="https://github.com/user-attachments/assets/7ae19c1f-1041-418a-a09e-b56a2ead1141" />
 
-
 ### 2. Add the card to a view
 
 Edit any view, click **+ Add Card**, search for **Navigation Menu**, and you'll see a live preview in the picker.
 
 <img width="1006" height="538" alt="image" src="https://github.com/user-attachments/assets/e28f897e-83ba-4b7e-8ace-d0f8985b63ad" />
-
 
 Or paste this YAML:
 
@@ -171,7 +178,6 @@ Remove the integration from *Settings → Devices & Services*. Menu definitions 
 
 ## Development
 <img width="256" height="256" alt="image" src="https://github.com/user-attachments/assets/05d306f7-cdff-4f35-96d4-cc264d418e2d" />
-
 
 ## Contributing
 
