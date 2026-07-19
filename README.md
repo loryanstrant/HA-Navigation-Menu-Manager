@@ -164,7 +164,7 @@ Full list of available CSS variables:
 
 - The integration stores menus in HA's `.storage` directory under `navigation_menu_manager.menus`
 - The card subscribes via a WebSocket command (`navigation_menu_manager/subscribe_menu`) and receives push updates whenever the menu is saved
-- The card listens for the `location-changed` and `popstate` window events to re-evaluate the active button as you navigate
+- The card listens for the `location-changed` and `popstate` window events to re-evaluate the active button as you navigate. It reads the URL on the next animation frame (so the browser has committed it) and also reconciles against the live URL on every `hass` update, so the highlight can't lag a navigation behind
 - Tap actions use SPA-style `history.pushState` + a synthetic `location-changed` event, so navigation never causes a full reload
 - The card resource is auto-registered via `frontend.add_extra_js_url` — no manual `/local/...js` resource entry required
 

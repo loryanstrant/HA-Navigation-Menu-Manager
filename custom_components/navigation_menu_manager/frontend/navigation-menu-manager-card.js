@@ -2,7 +2,7 @@
  * Navigation Menu Manager — Lovelace card
  * https://github.com/loryanstrant/HA-Navigation-Menu-Manager
  */
-const CARD_VERSION = "0.1.9";
+const CARD_VERSION = "0.1.10";
 const DOMAIN = "navigation_menu_manager";
 
 // How long to wait before showing a visible "Loading…" placeholder. Below
@@ -79,6 +79,7 @@ class NavigationMenuManagerCard extends HTMLElement {
     this._connecting = false; // true while a subscribe round-trip is in flight
     this._loadGen = 0; // increments each (re)connect; used to ignore stale callbacks
     this._currentPath = window.location.pathname;
+    this._pathCheckScheduled = false; // coalesces rapid location re-checks
     this._hasRenderedMenu = false; // whether a real menu has ever been shown
     this._loadingTimer = null; // delayed "Loading…" placeholder timer
     this._retryTimer = null; // one-shot subscribe retry timer
@@ -128,6 +129,14 @@ class NavigationMenuManagerCard extends HTMLElement {
     const first = !this._hass;
     this._hass = hass;
     if (first) this._maybeConnect();
+    // HA hands the card a fresh `hass` after a navigation has committed. Use it
+    // as a catch-all to reconcile the highlighted page: if a `location-changed`
+    // event was mistimed (fired before the URL updated) the active button could
+    // otherwise stay stuck one navigation behind. Cheap string compare; only
+    // schedules a render when the path actually changed.
+    else if (window.location.pathname !== this._currentPath) {
+      this._schedulePathCheck();
+    }
   }
 
   static getConfigElement() {
@@ -155,11 +164,24 @@ class NavigationMenuManagerCard extends HTMLElement {
   /* ---------- internals ---------- */
 
   _onLocationChanged() {
-    const newPath = window.location.pathname;
-    if (newPath !== this._currentPath) {
-      this._currentPath = newPath;
-      this._render();
-    }
+    // Some HA navigation paths dispatch `location-changed` *before* the browser
+    // has committed the new URL. Reading window.location synchronously here can
+    // therefore return the old path, leaving the highlight a navigation behind.
+    // Re-check on the next animation frame, by which point the URL is settled.
+    this._schedulePathCheck();
+  }
+
+  _schedulePathCheck() {
+    if (this._pathCheckScheduled) return;
+    this._pathCheckScheduled = true;
+    requestAnimationFrame(() => {
+      this._pathCheckScheduled = false;
+      const newPath = window.location.pathname;
+      if (newPath !== this._currentPath) {
+        this._currentPath = newPath;
+        this._render();
+      }
+    });
   }
 
   _clearTimers() {
