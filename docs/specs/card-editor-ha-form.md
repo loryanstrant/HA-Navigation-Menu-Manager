@@ -98,8 +98,13 @@ open in an overlay layer instead of as native popups.
 1. Every control on both surfaces is a Home Assistant component; no raw `<select>` or `<input>`
    authored by this repo survives. (HA's own components render `<input>` internally; the assertion
    is scoped to our own DOM.)
-2. The card's menu field is a single control — a dropdown of menus by **friendly name** that also
-   accepts a typed id — replacing today's select-or-text-input pair.
+2. The card's menu field is a single control replacing today's select-or-text-input pair, and it
+   shows menus by **friendly name**. Its shape follows the situation: a dropdown of names when
+   menus exist; a text box when none do, so the id of a menu about to be created can still be
+   typed; and an id with no matching menu is kept as an option labelled `<id> — not defined` rather
+   than silently dropped. *(Amended during implementation: a select selector with
+   `custom_value: true` would have covered all three at once, but Home Assistant renders that mode
+   as a picker displaying the raw value — which is the identifier this port exists to remove.)*
 3. That field distinguishes four states in its helper text: loading, loaded, no menus defined, and
    `list_menus` failed. The failure case is currently swallowed silently.
 4. The card's style field offers *Use the menu's own style* plus the three styles, and stores the
@@ -110,6 +115,9 @@ open in an overlay layer instead of as native popups.
 6. The panel's item icon field is `ha-icon-picker` and its path field offers the dashboard's views
    by name while still accepting a bare view id or an external URL. Existing values load unchanged
    and save back byte-identically.
+6a. Every item's path field carries a caption that stays visible once the field holds a value.
+    *(Added during implementation: `ha-navigation-picker` passes its label down as a placeholder,
+    so the caption is drawn by this repo rather than by the selector.)*
 7. The panel's item `match` offers *Automatic* / *Exact* / *Starts with* / *Ends with* and stores
    absent/`exact`/`prefix`/`suffix`.
 8. The `ha-form` node is the same object across 20 consecutive `hass` assignments in the card
@@ -121,7 +129,9 @@ open in an overlay layer instead of as native popups.
 11. `manifest.json`, `const.py` `VERSION`, `CARD_VERSION` and `PANEL_VERSION` all read `0.2.0`, and
     the served file at `?v=0.2.0` contains the new code.
 12. Screenshots of both surfaces at desktop and ~380px show them matching the surrounding Home
-    Assistant fields.
+    Assistant fields — with the image dimensions themselves asserted, not assumed.
+13. Neither surface logs a page error from this repo's own files. Errors from other components on
+    the test instance are reported separately rather than counted as ours.
 
 ## Non-goals
 
