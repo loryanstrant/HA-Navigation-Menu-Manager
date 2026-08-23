@@ -2,7 +2,7 @@
  * Navigation Menu Manager — Lovelace card
  * https://github.com/loryanstrant/HA-Navigation-Menu-Manager
  */
-const CARD_VERSION = "0.1.10";
+const CARD_VERSION = "0.2.0";
 const DOMAIN = "navigation_menu_manager";
 
 // How long to wait before showing a visible "Loading…" placeholder. Below
@@ -140,6 +140,9 @@ class NavigationMenuManagerCard extends HTMLElement {
   }
 
   static getConfigElement() {
+    // Kick the chunk that defines ha-form off before the editor is built,
+    // rather than after. See loadHaComponents.
+    loadHaComponents();
     return document.createElement("navigation-menu-manager-card-editor");
   }
 
@@ -571,11 +574,156 @@ class NavigationMenuManagerCard extends HTMLElement {
 
 /* ------------------------------ editor ----------------------------------- */
 
+/*
+ * The editor is built on Home Assistant's own `ha-form` rather than hand-built
+ * DOM. Two of the reasons are cosmetic and one is structural.
+ *
+ * Cosmetic: it renders inside HA's card dialog surrounded by Material fields,
+ * and raw `<select>`/`<input>` match neither those fields nor the active theme;
+ * and a `<select>` of menu ids puts a raw identifier in the one field a
+ * non-developer has to get right.
+ *
+ * Structural, and the stronger reason: assigning `innerHTML` on every render
+ * destroys the control the user is currently using. HA hands a card `hass`
+ * several times a second, and the sibling Laundry Weather card shipped exactly
+ * that bug — a dropdown that flashed open and shut. Here the form element is
+ * created once and thereafter only `.hass`, `.schema` and `.data` are assigned,
+ * so Lit patches in place and there is nothing to blow away.
+ */
+
+const EDITOR_LABELS = {
+  menu: "Menu",
+  style_mode: "Style",
+  columns: "Columns",
+  card_style: "Show the card background",
+  seamless: "Seamless — buttons sit flush, as one bar",
+};
+
+// ha-form renders the raw key name when it cannot find a label, so this map is
+// required rather than decorative.
+const COLUMNS_HELPER = "Leave empty for one column per button.";
+
+// The menu field is the only one that can fail, be empty, or still be loading,
+// so its helper line carries the state. The error case used to be swallowed.
+const MENU_HELPERS = {
+  loading: "Finding your menus…",
+  ready: "Manage your menus in the Nav Menus sidebar panel.",
+  empty:
+    "No menus yet — create one in the Nav Menus sidebar panel, or type the id you plan to use.",
+  error: "Couldn't load your menus. Type the menu id, or close and reopen this dialog.",
+};
+
+const STYLE_OPTIONS = [
+  { value: "auto", label: "Use the menu's own style" },
+  { value: "buttons", label: "Buttons — icon above label" },
+  { value: "icons", label: "Icons only" },
+  { value: "compact", label: "Compact — icon beside label" },
+];
+
+/**
+ * The stored value is absent / "buttons" / "icons" / "compact", where absent
+ * means "inherit from the menu". Three states, so a boolean cannot express it
+ * and the dropdown needs a sentinel; this maps the stored shape onto it.
+ */
+function styleToMode(value) {
+  return value === "buttons" || value === "icons" || value === "compact" ? value : "auto";
+}
+
+/**
+ * The menu field, chosen from the situation rather than fixed.
+ *
+ * There is only ever one control here — the point of the port was to replace
+ * the old select-plus-text-box pair — but which control it is depends on what
+ * exists:
+ *
+ *  - Menus defined: a dropdown listing them by the name you gave them.
+ *  - A stored id that no longer matches a menu (deleted, renamed, or written by
+ *    hand): that id is added as an option marked "not defined", so the value is
+ *    displayed and cannot be silently dropped by opening the editor.
+ *  - No menus at all: a text box, so the id of a menu you are about to create
+ *    can still be typed.
+ *
+ * A select selector with `custom_value: true` would cover all three in one go,
+ * and was tried first. It cannot be used: with `custom_value` Home Assistant
+ * renders a generic picker that displays the raw *value*, so the field showed
+ * "demo" where the menu is called "Demo Nav" — reinstating exactly the raw
+ * identifier this port set out to remove.
+ */
+function menuField(menus, current) {
+  const ids = Object.keys(menus).sort();
+  if (!ids.length) {
+    return { name: "menu", required: true, selector: { text: {} } };
+  }
+  const options = ids.map((id) => ({ value: id, label: menus[id].name || id }));
+  if (current && !Object.prototype.hasOwnProperty.call(menus, current)) {
+    options.push({ value: current, label: `${current} — not defined` });
+  }
+  return {
+    name: "menu",
+    required: true,
+    selector: { select: { mode: "dropdown", sort: true, options } },
+  };
+}
+
+function editorSchema(menus, current) {
+  return [
+    menuField(menus, current),
+    { name: "style_mode", selector: { select: { mode: "dropdown", options: STYLE_OPTIONS } } },
+    { name: "columns", selector: { number: { min: 1, max: 20, step: 1, mode: "box" } } },
+    { name: "card_style", selector: { boolean: {} } },
+    { name: "seamless", selector: { boolean: {} } },
+  ];
+}
+
+/**
+ * Make sure Home Assistant's form components are defined before one is built.
+ *
+ * `window.customElements` is re-read on every call rather than captured: HA
+ * swaps it for a scoped-registry polyfill while its core bundle boots. That is
+ * also why this must never be a top-level `customElements.whenDefined()` —
+ * such a binding attaches to the native registry's method and may never fire.
+ *
+ * Poking a Lovelace card for its config element is Mushroom's trick, and works
+ * here because the editor is only ever built from the card dialog, which has
+ * already loaded that chunk. `loadCardHelpers()` is the belt-and-braces that
+ * imports the chunk from anywhere; the panel in this same integration needs it
+ * for real, so both files carry the same loader.
+ */
+async function loadHaComponents() {
+  if (window.customElements.get("ha-form")) return;
+
+  const tile = window.customElements.get("hui-tile-card");
+  if (tile && tile.getConfigElement) {
+    try {
+      tile.getConfigElement();
+    } catch (_) {
+      /* noop — fall through to the helpers path */
+    }
+  }
+  if (window.customElements.get("ha-form")) return;
+
+  if (typeof window.loadCardHelpers === "function") {
+    try {
+      const helpers = await window.loadCardHelpers();
+      const el = await helpers.createCardElement({ type: "entities", entities: [] });
+      if (el && el.constructor && el.constructor.getConfigElement) {
+        await el.constructor.getConfigElement();
+      }
+    } catch (_) {
+      /* noop */
+    }
+  }
+}
+
 class NavigationMenuManagerCardEditor extends HTMLElement {
   constructor() {
     super();
-    this._config = {};
     this._menus = null;
+    this._menuState = "loading";
+  }
+
+  connectedCallback() {
+    loadHaComponents();
   }
 
   setConfig(config) {
@@ -583,151 +731,127 @@ class NavigationMenuManagerCardEditor extends HTMLElement {
     this._render();
   }
 
+  // Safe to render on every tick, unlike the hand-built version this replaced:
+  // nothing is destroyed, the form is just handed new values.
   set hass(hass) {
+    const first = !this._hass;
     this._hass = hass;
-    this._loadMenus();
+    if (first) this._loadMenus();
+    this._render();
   }
 
   async _loadMenus() {
-    if (this._menus || !this._hass) return;
+    if (!this._hass || this._menus) return;
     try {
       const res = await this._hass.callWS({ type: `${DOMAIN}/list_menus` });
       this._menus = res.menus || {};
-    } catch (e) {
+      this._menuState = Object.keys(this._menus).length ? "ready" : "empty";
+    } catch (_) {
       this._menus = {};
+      this._menuState = "error";
     }
     this._render();
   }
 
-  _emit() {
-    this.dispatchEvent(
-      new CustomEvent("config-changed", { detail: { config: this._config } })
-    );
+  _schema() {
+    // Rebuilt only when the menu list or the selected menu actually changes, so
+    // ha-form is not handed a fresh array object on every state update. The
+    // current value is part of the key because the field's shape depends on it:
+    // an id that is not in the list gets its own option. See menuField().
+    const menus = this._menus || {};
+    const current = (this._config && this._config.menu) || "";
+    const key =
+      current +
+      " " +
+      Object.keys(menus)
+        .sort()
+        .map((id) => id + ":" + (menus[id].name || ""))
+        .join("|");
+    if (!this._schemaCache || this._schemaKey !== key) {
+      this._schemaKey = key;
+      this._schemaCache = editorSchema(menus, current);
+    }
+    return this._schemaCache;
   }
 
-  _set(field, value) {
-    if (value === "" || value === undefined || value === null) {
-      delete this._config[field];
-    } else {
-      this._config[field] = value;
-    }
-    this._emit();
+  _formData() {
+    // Spread first, so keys this editor does not manage — `type`, and whatever
+    // HA itself adds such as `grid_options`, `view_layout` or `visibility` —
+    // ride along and survive an edit: ha-form's value-changed detail hands the
+    // whole data object back, so anything not spread in here would be dropped.
+    const config = this._config || {};
+    const data = { ...config };
+    data.style_mode = styleToMode(config.style);
+    delete data.style;
+    data.card_style = config.card_style !== false;
+    data.seamless = config.seamless === true;
+    return data;
   }
 
   _render() {
-    const menus = this._menus || {};
-    const ids = Object.keys(menus);
-    const options = ids
-      .map(
-        (id) =>
-          `<option value="${escapeHtml(id)}" ${
-            id === this._config.menu ? "selected" : ""
-          }>${escapeHtml(menus[id].name || id)} (${escapeHtml(id)})</option>`
-      )
-      .join("");
+    // ha-form needs hass to resolve its selectors, so wait for it.
+    if (!this._hass || !this._config) return;
 
-    this.innerHTML = `
-      <style>
-        .nmm-editor { display:flex; flex-direction:column; gap:12px; padding:8px 4px; }
-        .nmm-editor label { font-size:12px; opacity:.8; }
-        .nmm-row { display:flex; flex-direction:column; gap:4px; }
-        .nmm-editor select, .nmm-editor input {
-          padding:8px; border-radius:6px;
-          border:1px solid var(--divider-color, #555);
-          background: var(--card-background-color, transparent);
-          color: var(--primary-text-color, inherit);
-          font-size: 14px;
-        }
-        .nmm-help { font-size:12px; opacity:.7; }
-        .nmm-warning { font-size:12px; color: var(--warning-color, #ffa600); }
-      </style>
-      <div class="nmm-editor">
-        <div class="nmm-row">
-          <label for="nmm-menu">Menu</label>
-          ${
-            ids.length === 0
-              ? `<div class="nmm-warning">No menus defined yet. Open the <strong>Nav Menus</strong> sidebar entry to create one.</div>
-                 <input id="nmm-menu" type="text" placeholder="Menu id (e.g. main)" value="${escapeHtml(
-                   this._config.menu || ""
-                 )}" />`
-              : `<select id="nmm-menu">
-                   ${options}
-                 </select>`
-          }
-        </div>
+    if (!this._form) {
+      const form = document.createElement("ha-form");
+      form.computeLabel = (schema) => EDITOR_LABELS[schema.name] || schema.name;
+      form.computeHelper = (schema) => {
+        if (schema.name === "menu") return MENU_HELPERS[this._menuState] || "";
+        if (schema.name === "columns") return COLUMNS_HELPER;
+        return "";
+      };
+      form.addEventListener("value-changed", (event) => this._onValueChanged(event));
+      // Light DOM, matching the sibling laundry-weather and ha-jokes cards: the
+      // dialog styles the editor's own children, and HA's newer pickers read
+      // `hass` from a Lit context provider further up the tree rather than from
+      // a property, so they must stay inside it.
+      this.appendChild(form);
+      this._form = form;
+    }
 
-        <div class="nmm-row">
-          <label for="nmm-style">Style override (optional)</label>
-          <select id="nmm-style">
-            <option value="">— Use menu default —</option>
-            <option value="buttons" ${
-              this._config.style === "buttons" ? "selected" : ""
-            }>Buttons (icon + label)</option>
-            <option value="icons" ${
-              this._config.style === "icons" ? "selected" : ""
-            }>Icons only</option>
-            <option value="compact" ${
-              this._config.style === "compact" ? "selected" : ""
-            }>Compact</option>
-          </select>
-        </div>
+    this._form.hass = this._hass;
+    this._form.schema = this._schema();
+    this._form.data = this._formData();
+  }
 
-        <div class="nmm-row">
-          <label for="nmm-columns">Columns (optional)</label>
-          <input id="nmm-columns" type="number" min="1" max="20" value="${
-            this._config.columns || ""
-          }" placeholder="Auto (one per item)" />
-        </div>
+  _onValueChanged(event) {
+    // Stop the inner event so only our config-changed reaches the editor host.
+    event.stopPropagation();
+    const value = { ...event.detail.value };
 
-        <div class="nmm-row">
-          <label>Card style</label>
-          <select id="nmm-card-style">
-            <option value="true" ${
-              this._config.card_style !== false ? "selected" : ""
-            }>Wrap in card</option>
-            <option value="false" ${
-              this._config.card_style === false ? "selected" : ""
-            }>No card background</option>
-          </select>
-        </div>
+    // Map the form's shape back onto the stored shape, dropping every key that
+    // holds its default so the emitted YAML stays exactly as small as the old
+    // editor's — an unedited dashboard should not grow keys it never had.
+    const mode = value.style_mode;
+    delete value.style_mode;
+    if (mode && mode !== "auto") {
+      value.style = mode;
+    } else {
+      delete value.style;
+    }
 
-        <div class="nmm-row">
-          <label for="nmm-seamless">Appearance</label>
-          <select id="nmm-seamless">
-            <option value="false" ${
-              this._config.seamless !== true ? "selected" : ""
-            }>Separated buttons (default)</option>
-            <option value="true" ${
-              this._config.seamless === true ? "selected" : ""
-            }>Seamless (no gaps or borders)</option>
-          </select>
-          <div class="nmm-help">
-            Edit menu contents (labels, icons, paths) in the Nav Menus sidebar entry.
-          </div>
-        </div>
-      </div>
-    `;
+    if (value.card_style !== false) delete value.card_style;
+    if (value.seamless !== true) delete value.seamless;
 
-    const menuEl = this.querySelector("#nmm-menu");
-    menuEl?.addEventListener("change", (e) => this._set("menu", e.target.value));
-    menuEl?.addEventListener("input", (e) => this._set("menu", e.target.value));
+    const columns = Number(value.columns);
+    if (Number.isFinite(columns) && columns > 0) {
+      value.columns = columns;
+    } else {
+      delete value.columns;
+    }
 
-    this.querySelector("#nmm-style")?.addEventListener("change", (e) =>
-      this._set("style", e.target.value)
+    if (!value.menu) delete value.menu;
+
+    this._config = value;
+    this.dispatchEvent(
+      new CustomEvent("config-changed", {
+        detail: { config: value },
+        bubbles: true,
+        composed: true,
+      })
     );
-    this.querySelector("#nmm-columns")?.addEventListener("change", (e) => {
-      const v = parseInt(e.target.value, 10);
-      this._set("columns", Number.isFinite(v) && v > 0 ? v : undefined);
-    });
-    this.querySelector("#nmm-card-style")?.addEventListener("change", (e) => {
-      this._set("card_style", e.target.value === "true" ? undefined : false);
-    });
-    this.querySelector("#nmm-seamless")?.addEventListener("change", (e) => {
-      this._set("seamless", e.target.value === "true" ? true : undefined);
-    });
   }
 }
-
 /* --------------------------------- utils -------------------------------- */
 
 function escapeHtml(s) {

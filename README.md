@@ -75,9 +75,11 @@ Open the **Nav Menus** sidebar entry. Click **+ New menu** and fill in:
 | Field | Description |
 | --- | --- |
 | **Menu ID** | The identifier you'll reference from cards (e.g. `main`). Letters, digits, dashes, underscores. |
-| **Display name** | A human-readable name (used in the panel and card picker only). |
+| **Display name** | A human-readable name — what you'll see in the menu list and in the card editor. |
 | **Default style** | `buttons` (icon + label), `icons` (icons only), or `compact` (icon + label side-by-side). |
-| **Items** | Each item has a **label**, **icon** (MDI), **path**, and optional **match** mode. |
+| **Items** | Each item has a **label**, an **icon** picked from Home Assistant's searchable icon picker, a **path** chosen from your dashboard's own views (or typed), and an optional **match** mode. |
+
+![The Nav Menus panel](docs/images/panel.png)
 
 #### Path formats
 
@@ -87,12 +89,10 @@ Open the **Nav Menus** sidebar entry. Click **+ New menu** and fill in:
 
 #### Match modes
 
-- **Auto** *(default)* — view IDs match the last URL segment; full paths match as a prefix
+- **Automatic** *(default)* — view IDs match the last URL segment; full paths match as a prefix
 - **Exact** — only exact URL matches highlight as active
-- **Prefix** — `current.startsWith(path)`
-- **Suffix** — `current.endsWith(path)`
-
-<img width="1824" height="994" alt="image" src="https://github.com/user-attachments/assets/7ae19c1f-1041-418a-a09e-b56a2ead1141" />
+- **Starts with** — `current.startsWith(path)` (stored as `prefix`)
+- **Ends with** — `current.endsWith(path)` (stored as `suffix`)
 
 ### 2. Add the card to a view
 
@@ -111,13 +111,21 @@ That's it. The card loads the menu defined in the panel and highlights whichever
 
 #### Optional card overrides
 
+Every one of these has a field in the visual editor, so you only need the YAML if you prefer it.
+
 ```yaml
 type: custom:navigation-menu-manager-card
 menu: main
 style: icons          # override default style (buttons | icons | compact)
 columns: 6            # number of grid columns; defaults to one per item
 card_style: false     # remove the surrounding ha-card background
+seamless: true        # buttons sit flush against each other, as one bar
 ```
+
+Omit a key to keep the default: `style` falls back to the menu's own style, `columns` to one column
+per button, `card_style` to a normal card background, and `seamless` to separated buttons.
+
+![The card editor](docs/images/card-editor.png)
 
 ## Theming
 
