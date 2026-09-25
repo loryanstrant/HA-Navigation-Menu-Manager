@@ -2,7 +2,7 @@
  * Navigation Menu Manager — Lovelace card
  * https://github.com/loryanstrant/HA-Navigation-Menu-Manager
  */
-const CARD_VERSION = "0.2.0";
+const CARD_VERSION = "0.2.1";
 const DOMAIN = "navigation_menu_manager";
 
 // How long to wait before showing a visible "Loading…" placeholder. Below
