@@ -3,6 +3,51 @@
 Dated, non-obvious choices and the quirks that forced them. One entry per decision, each ending in
 a lesson worth carrying elsewhere.
 
+## 2026-09-25 — `handle_safe_area` stays **false**, and why the real fix was a `100vh`
+
+HA 2026.8.2 added `handle_safe_area` to `panel_custom.async_register_panel`. The name reads like an
+opt-in to safe-area support. It is the opposite: it opts a panel **out** of the padding Home
+Assistant now adds for you. Core's own signature comment says so — *"If your panel handles the safe
+area insets itself, opting out of the padding Home Assistant would otherwise add around it"* — and
+`ha-panel-custom.ts` implements it as `const applySafeArea = !config.handle_safe_area`, which when
+true skips setting `paddingTop/Bottom/Left/Right` on the panel container.
+
+This panel consumes no insets anywhere in its CSS. Setting `handle_safe_area: true` would therefore
+have **removed** notch protection from a panel that has none of its own — shipping the regression
+while appearing to fix it. It stays at the default `false`, and `__init__.py` is untouched.
+
+The parameter did surface a real bug, though. Since 2026.8.2 `ha-panel-custom` is a `border-box`
+container with `padding: var(--safe-area-inset-*)`, and `.layout` carried `min-height: 100vh`. A
+full-viewport child inside a padded border-box container overflows by exactly the top+bottom insets
+— a phantom page scroll that pushes the footer off a notched screen. Pre-2026.8.2 the padding did
+not exist and `100vh` was right; the upstream change made it wrong. Now:
+
+```css
+min-height: calc(100vh - var(--safe-area-inset-top, 0px) - var(--safe-area-inset-bottom, 0px));
+```
+
+Two things in that line are deliberate. **`var(--safe-area-inset-*)`, not `env(safe-area-inset-*)`**
+— HA defines `--safe-area-inset-top: var(--app-safe-area-inset-top, env(safe-area-inset-top, 0px))`,
+so in the Companion app the true inset arrives through the native `--app-*` variable while `env()`
+inside the WebView commonly reads `0px`. Using `env()` would under-subtract in precisely the case
+the fix exists for, and would silently disagree with what the container actually padded by. Custom
+properties cross the shadow boundary, so it resolves inside the panel's shadow root. (The `0px`
+fallbacks are belt-and-braces for a frontend older than 2026.8.2 that never defines the variables at
+all: `var()` substitutes a fallback only when the property is genuinely *unset*, not when it is
+declared-but-empty. HA's own chain bottoms out at a literal `0px`, so the empty case does not arise
+here — but if it ever did, the `calc()` would be invalid and `min-height` would compute to `auto`
+rather than silently reverting to `100vh`.)
+
+And **not a percentage**: nothing in the ancestor chain — `ha-drawer[slot=appContent]`,
+`partial-panel-resolver`, `ha-panel-custom` — sets a height (`home-assistant-main`'s stylesheet
+styles `partial-panel-resolver` for tap-highlight only), so `min-height: 100%` resolves against an
+auto-height parent and collapses to content height. `100dvh` was also rejected: it solves mobile
+browser-chrome, not a parent's padding, so it would look like a fix without being one. With no
+insets the `calc()` is exactly `100vh`, so the desktop case is byte-for-byte unchanged.
+
+**Lesson:** read the flag's implementation, not its name. `handle_safe_area` means "I'll handle it",
+and the reflexive opt-in would have been a regression dressed as an improvement.
+
 ## 2026-08-23 — Both editing surfaces are built on `ha-form`
 
 The card editor was ~130 lines of hand-built DOM and the Nav Menus panel another ~630, both

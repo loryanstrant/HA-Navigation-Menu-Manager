@@ -25,7 +25,7 @@ import { chromium } from "playwright-core";
 const BASE = process.env.HA_URL || "http://localhost:8123";
 const TOKEN = process.env.HA_TOKEN;
 const OUT = process.env.OUT_DIR || "/out";
-const CARD_URL = "/navigation_menu_manager_static/navigation-menu-manager-card.js?v=0.2.0";
+const CARD_URL = "/navigation_menu_manager_static/navigation-menu-manager-card.js?v=0.2.1";
 
 const results = [];
 function check(name, ok, detail) {

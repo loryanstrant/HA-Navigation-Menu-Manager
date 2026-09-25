@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 DOMAIN = "navigation_menu_manager"
-VERSION = "0.2.0"
+VERSION = "0.2.1"
 
 STORAGE_KEY = f"{DOMAIN}.menus"
 STORAGE_VERSION = 1

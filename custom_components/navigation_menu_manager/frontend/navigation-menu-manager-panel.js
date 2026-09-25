@@ -2,7 +2,7 @@
  * Navigation Menu Manager — Admin Panel
  * https://github.com/loryanstrant/HA-Navigation-Menu-Manager
  */
-const PANEL_VERSION = "0.2.0";
+const PANEL_VERSION = "0.2.1";
 const DOMAIN = "navigation_menu_manager";
 
 // eslint-disable-next-line no-console
@@ -813,7 +813,25 @@ class NavigationMenuManagerPanel extends HTMLElement {
         /* Several containers below set an explicit display, which would beat
            the user-agent rule for [hidden] and leave "hidden" panes visible. */
         [hidden] { display: none !important; }
-        .layout { display:flex; flex-direction:column; height:100%; min-height:100vh; }
+        /* HA 2026.8.2 made ha-panel-custom a border-box container carrying
+           padding: var(--safe-area-inset-*) for every panel that does not set
+           handle_safe_area: true. This panel deliberately does NOT set it (see
+           DECISIONS.md), so a plain 100vh here overflows that padding by the
+           top+bottom insets — a phantom page scroll that pushes the footer off a
+           notched screen. Subtract what the container added.
+           var(--safe-area-inset-*), never env(...): HA resolves these as
+           var(--app-safe-area-inset-*, env(...)), and in the Companion app the
+           real value arrives via the native --app-* var while env() reads 0.
+           Percentages are not an option — no ancestor (ha-drawer /
+           partial-panel-resolver / ha-panel-custom) sets a height, so a
+           percentage min-height would collapse to content. With no insets this
+           is exactly 100vh, so the desktop case is unchanged. */
+        .layout {
+          display:flex; flex-direction:column; height:100%;
+          min-height: calc(
+            100vh - var(--safe-area-inset-top, 0px) - var(--safe-area-inset-bottom, 0px)
+          );
+        }
         .topbar {
           display:flex; align-items:center; justify-content:space-between;
           padding: 16px 24px;
